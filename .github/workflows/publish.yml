@@ -1,0 +1,54 @@
+name: Publish VS Code Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      pre_release:
+        description: 'Publish as pre-release'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  publish:
+    name: Build & Publish Extension
+    runs-on: ubuntu-latest
+    env:
+      VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+      OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Package .vsix
+        run: npx @vscode/vsce package
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: thtml-vscode.vsix
+          path: '*.vsix'
+
+      - name: Publish to VS Code Marketplace
+        if: ${{ env.VSCE_TOKEN != '' }}
+        run: npx @vscode/vsce publish ${{ inputs.pre_release == 'true' && '--pre-release' || '' }}
+        env:
+          VSCE_PAT: ${{ env.VSCE_TOKEN }}
+        continue-on-error: true
+
+      - name: Publish to Open VSX
+        if: ${{ env.OVSX_TOKEN != '' }}
+        run: npx ovsx publish *.vsix --pat ${{ env.OVSX_TOKEN }}
+        continue-on-error: true
